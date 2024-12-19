@@ -1,0 +1,95 @@
+.container {
+    padding: 20px;
+    background-color: white;
+}
+
+#jsmind_container {
+    width: 100%;
+    height: 100vh;
+    background-color: #f4f4f4;
+}
+
+.controls {
+    margin-bottom: 20px;
+}
+
+button {
+    padding: 8px 16px;
+    margin-right: 10px;
+    cursor: pointer;
+    background-color: #4A90E2;
+    color: white;
+    border: none;
+    border-radius: 4px;
+}
+
+button:hover {
+    background-color: #357ABD;
+}
+
+/* Additional styles for nodes */
+jmnode {
+    border-radius: 5px !important;
+    padding: 10px !important;
+    box-shadow: 2px 2px 4px rgba(0,0,0,0.1) !important;
+    transition: opacity 0.3s ease-in-out;
+} 
+
+.jsmind-inner {
+    background-color: #f4f4f4;
+}
+
+/* Add transition for smooth fade and scale effect */
+.jsmind-inner jmnode {
+    transition: all 0.3s ease-in-out !important;
+    opacity: 1;
+    transform: scale(1);
+}
+
+/* Class for faded nodes */
+.jsmind-inner jmnode.faded-branch {
+    opacity: 0.1 !important;
+    transform: scale(0.8) !important;
+    pointer-events: none;
+}
+
+/* Class for active branch */
+.jsmind-inner jmnode.active-branch {
+    opacity: 1 !important;
+    transform: scale(1.2) !important;
+    z-index: 1000 !important;
+    box-shadow: 0 4px 8px rgba(0,0,0,0.2) !important;
+}
+
+/* Root node specific styling */
+.jsmind-inner jmnode[nodeid="root"].active-branch {
+    transform: scale(1.1) !important;
+}
+
+/* Mobile-specific styles */
+@media (max-width: 768px) {
+    .jsmind-inner jmnode {
+        transition: all 0.2s ease-in-out !important; /* Faster transitions on mobile */
+    }
+
+    .jsmind-inner jmnode.faded-branch {
+        opacity: 0.05 !important; /* More fade on mobile */
+        transform: scale(0.9) !important; /* Less scale difference */
+    }
+
+    .jsmind-inner jmnode.active-branch {
+        transform: scale(1.1) !important; /* Less enlargement on mobile */
+        box-shadow: 0 2px 4px rgba(0,0,0,0.15) !important; /* Lighter shadow */
+    }
+
+    /* Optimize touch targets */
+    .jsmind-inner jmnode {
+        padding: 12px !important; /* Larger touch target */
+        margin: 4px !important; /* Better spacing */
+    }
+}
+
+/* Add smooth scrolling for iOS */
+.jsmind-inner {
+    -webkit-overflow-scrolling: touch;
+}
