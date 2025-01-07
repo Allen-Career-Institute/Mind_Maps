@@ -1,6 +1,15 @@
 document.addEventListener('DOMContentLoaded', function() {
     console.log('DOM Content Loaded');
     
+    // Performance optimization - Throttle resize events
+    let resizeTimeout;
+    window.addEventListener('resize', function() {
+        if (resizeTimeout) clearTimeout(resizeTimeout);
+        resizeTimeout = setTimeout(function() {
+            if (jm) jm.resize();
+        }, 250);
+    });
+
     const options = {
         container: 'jsmind_container',
         theme: 'primary',
@@ -11,294 +20,302 @@ document.addEventListener('DOMContentLoaded', function() {
             vmargin: 50,
             line_width: 2,
             line_color: '#555'
+        },
+        layout: {
+            hspace: 80,
+            vspace: 30,
+            pspace: 13
         }
     };
     console.log('Options initialized:', options);
 
-    const mindMapData = {
-        meta: {
-            name: 'jsMind Demo',
-            author: 'Author',
-            version: '1.0'
-        },
-        format: 'node_array',
-        data: [
-            { id: 'root', isroot: true, topic: 'Project Planning' },
-            
-            // Right side branches
-            // Development Branch (1)
-            { id: '1', parentid: 'root', topic: 'Development', direction: 'right' },
-            { id: '1.1', parentid: '1', topic: 'Frontend', direction: 'right' },
-            { id: '1.2', parentid: '1', topic: 'Backend', direction: 'right' },
-            { id: '1.3', parentid: '1', topic: 'Database', direction: 'right' },
-            
-            // Frontend Children (1.1)
-            { id: '1.1_1', parentid: '1.1', topic: 'UI Design', direction: 'right' },
-            { id: '1.1_2', parentid: '1.1', topic: 'UX Flow', direction: 'right' },
-            { id: '1.1_3', parentid: '1.1', topic: 'Responsive Design', direction: 'right' },
-            
-            // Backend Children (1.2)
-            { id: '1.2_1', parentid: '1.2', topic: 'API Development', direction: 'right' },
-            { id: '1.2_2', parentid: '1.2', topic: 'Security', direction: 'right' },
-            { id: '1.2_3', parentid: '1.2', topic: 'Performance', direction: 'right' },
-            
-            // Testing Branch (2)
-            { id: '2', parentid: 'root', topic: 'Testing', direction: 'right' },
-            { id: '2.1', parentid: '2', topic: 'Unit Tests', direction: 'right' },
-            { id: '2.2', parentid: '2', topic: 'Integration Tests', direction: 'right' },
-            { id: '2.3', parentid: '2', topic: 'E2E Tests', direction: 'right' },
-            
-            // Left side branches
-            // Resources Branch (3)
-            { id: '3', parentid: 'root', topic: 'Resources', direction: 'left' },
-            { id: '3.1', parentid: '3', topic: 'Team Members', direction: 'left' },
-            { id: '3.2', parentid: '3', topic: 'Budget', direction: 'left' },
-            { id: '3.3', parentid: '3', topic: 'Timeline', direction: 'left' },
-            
-            // Team Children (3.1)
-            { id: '3.1_1', parentid: '3.1', topic: 'Developers', direction: 'left' },
-            { id: '3.1_2', parentid: '3.1', topic: 'Designers', direction: 'left' },
-            { id: '3.1_3', parentid: '3.1', topic: 'QA Engineers', direction: 'left' },
-            
-            // Timeline Children (3.3)
-            { id: '3.3_1', parentid: '3.3', topic: 'Phase 1', direction: 'left' },
-            { id: '3.3_2', parentid: '3.3', topic: 'Phase 2', direction: 'left' },
-            { id: '3.3_3', parentid: '3.3', topic: 'Phase 3', direction: 'left' },
-            
-            // Stakeholders Branch (4)
-            { id: '4', parentid: 'root', topic: 'Stakeholders', direction: 'left' },
-            { id: '4.1', parentid: '4', topic: 'Clients', direction: 'left' },
-            { id: '4.2', parentid: '4', topic: 'Investors', direction: 'left' },
-            { id: '4.3', parentid: '4', topic: 'Partners', direction: 'left' }
-        ]
-    };
-    console.log('Mind map data structure defined');
+    const CHILDREN_PER_PAGE = 5;
+    const MORE_NODE_ID_PREFIX = 'more_';
+    const MORE_NODE_TOPIC = '...';
 
-    const mainBranchIds = ['1', '2', '3', '4'];
-    console.log('Main branch IDs:', mainBranchIds);
+    // Track paginated nodes and their remaining children
+    const paginationState = new Map();
+
+    function createCollapsedData(originalData) {
+        const rootNode = originalData.data.find(node => node.isroot);
+        const firstLevelNodes = originalData.data.filter(node => node.parentid === rootNode.id);
+        
+        firstLevelNodes.forEach(node => {
+            node._childCount = countTotalChildren(node.id, originalData.data);
+        });
+        
+        return {
+            meta: originalData.meta,
+            format: originalData.format,
+            data: [rootNode, ...firstLevelNodes]
+        };
+    }
+
+    const nodeChildrenCache = new Map();
+    function countTotalChildren(nodeId, allNodes) {
+        if (nodeChildrenCache.has(nodeId)) {
+            return nodeChildrenCache.get(nodeId);
+        }
+        
+        const directChildren = allNodes.filter(node => node.parentid === nodeId);
+        let total = directChildren.length;
+        
+        directChildren.forEach(child => {
+            total += countTotalChildren(child.id, allNodes);
+        });
+        
+        nodeChildrenCache.set(nodeId, total);
+        return total;
+    }
+
+    const fullMindMapData = mindMapData;
+    const collapsedMindMapData = createCollapsedData(mindMapData);
 
     const jm = new jsMind(options);
     console.log('jsMind instance created');
     
-    jm.show(mindMapData);
-    console.log('Mind map rendered');
+    jm.show(collapsedMindMapData);
+    console.log('Mind map rendered in collapsed state');
 
-    function getAllChildNodes(branchId) {
-        console.log(`Getting all child nodes for branch: ${branchId}`);
-        const children = [];
-        const branch = jm.get_node(branchId);
-        if (branch) {
-            function traverse(node) {
-                console.log(`Traversing node: ${node.id}`);
-                children.push(node.id);
-                if (node.children) {
-                    console.log(`Found children for node ${node.id}:`, node.children.map(c => c.id));
-                    node.children.forEach(child => traverse(child));
-                }
-            }
-            traverse(branch);
+    const nodeCache = new Map();
+    function getChildNodes(nodeId) {
+        if (nodeCache.has(nodeId)) {
+            return nodeCache.get(nodeId);
         }
-        console.log(`Found ${children.length} children for branch ${branchId}:`, children);
+        const children = fullMindMapData.data.filter(node => node.parentid === nodeId);
+        nodeCache.set(nodeId, children);
         return children;
     }
 
-    // Function to check if an element is in viewport
-    function isInViewport(element) {
-        const rect = element.getBoundingClientRect();
-        return (
-            rect.top >= -50 && // Slightly above viewport
-            rect.left >= -50 && // Slightly left of viewport
-            rect.bottom <= (window.innerHeight || document.documentElement.clientHeight) + 50 && // Slightly below viewport
-            rect.right <= (window.innerWidth || document.documentElement.clientWidth) + 50 // Slightly right of viewport
-        );
+    function hasChildren(nodeId) {
+        return getChildNodes(nodeId).length > 0;
     }
 
-    // Function to update nodes based on viewport visibility
-    function updateNodesVisibility() {
-        console.log('Updating nodes visibility based on viewport');
-        const allNodes = document.querySelectorAll('.jsmind-inner jmnode');
+    function areChildrenRendered(nodeId) {
+        const node = jm.get_node(nodeId);
+        return node && node.children && node.children.length > 0;
+    }
+
+    function isMoreNode(nodeId) {
+        return nodeId.startsWith(MORE_NODE_ID_PREFIX);
+    }
+
+    function getParentFromMoreNode(moreNodeId) {
+        return moreNodeId.split('_')[1];
+    }
+
+    function createMoreNodeId(parentId, pageIndex) {
+        return `${MORE_NODE_ID_PREFIX}${parentId}_${pageIndex}`;
+    }
+git 
+    function getPaginationState(nodeId) {push 
+        if (!paginationState.has(nodeId)) {
+            paginationState.set(nodeId, {
+                currentPage: 0,
+                totalChildren: getChildNodes(nodeId).length
+            });
+        }
+        return paginationState.get(nodeId);
+    }
+
+    function renderPaginatedChildren(nodeId, pageIndex = 0) {
+        const childNodes = getChildNodes(nodeId);
         
-        allNodes.forEach(node => {
-            if (isInViewport(node)) {
-                console.log(`Node ${node.getAttribute('nodeid')} is in viewport`);
-                node.classList.remove('faded-branch');
-                node.classList.add('active-branch');
-            } else {
-                console.log(`Node ${node.getAttribute('nodeid')} is out of viewport`);
-                node.classList.add('faded-branch');
-                node.classList.remove('active-branch');
+        // If 5 or fewer children, render them all
+        if (childNodes.length <= CHILDREN_PER_PAGE && pageIndex === 0) {
+            requestAnimationFrame(() => {
+                childNodes.forEach(childNode => {
+                    jm.add_node(nodeId, childNode.id, childNode.topic, {
+                        direction: childNode.direction,
+                        expanded: false,
+                        data: childNode.data || {}
+                    });
+                });
+                
+                if (jm.layout) {
+                    jm.layout.layout();
+                }
+            });
+            return;
+        }
+
+        // For more than 5 children or subsequent pages
+        const startIndex = pageIndex * (CHILDREN_PER_PAGE - 1); // Reserve space for "..." node
+        const endIndex = startIndex + (CHILDREN_PER_PAGE - 1);
+        const currentPageNodes = childNodes.slice(startIndex, endIndex);
+        const remainingNodes = childNodes.slice(endIndex);
+        const hasMoreNodes = remainingNodes.length > 0;
+
+        requestAnimationFrame(() => {
+            // Render current page nodes
+            currentPageNodes.forEach(childNode => {
+                jm.add_node(nodeId, childNode.id, childNode.topic, {
+                    direction: childNode.direction,
+                    expanded: false,
+                    data: childNode.data || {}
+                });
+            });
+
+            // Add "..." node if there are more children
+            if (hasMoreNodes) {
+                const moreNodeId = createMoreNodeId(nodeId, pageIndex + 1);
+                jm.add_node(nodeId, moreNodeId, MORE_NODE_TOPIC, {
+                    direction: currentPageNodes[0].direction,
+                    expanded: false,
+                    data: {
+                        isMoreNode: true,
+                        parentId: nodeId,
+                        pageIndex: pageIndex + 1,
+                        remainingCount: remainingNodes.length
+                    }
+                });
+
+                // Store remaining nodes in pagination state
+                paginationState.set(moreNodeId, {
+                    parentId: nodeId,
+                    remainingNodes: remainingNodes,
+                    currentPage: pageIndex + 1
+                });
+            }
+
+            if (jm.layout) {
+                jm.layout.layout();
             }
         });
     }
 
-    // Throttle function to limit scroll event firing
-    function throttle(func, limit) {
-        let inThrottle;
-        return function() {
-            const args = arguments;
-            const context = this;
-            if (!inThrottle) {
-                func.apply(context, args);
-                inThrottle = true;
-                setTimeout(() => inThrottle = false, limit);
-            }
-        }
+    function handleMoreNodeClick(moreNodeId) {
+        const state = paginationState.get(moreNodeId);
+        if (!state) return;
+
+        const { parentId, currentPage } = state;
+        
+        // Remove the current "..." node
+        jm.remove_node(moreNodeId);
+        
+        // Remove the state for the current "..." node
+        paginationState.delete(moreNodeId);
+        
+        // Render the next set of children
+        renderPaginatedChildren(parentId, currentPage);
     }
 
-    // Modified toggleBranchVisibility function
-    function toggleBranchVisibility(activeBranchId = null) {
-        if (window.innerWidth <= 768) { // Mobile viewport
-            updateNodesVisibility();
-        } else {
-            // Existing desktop behavior
-            console.log(`Toggling branch visibility. Active branch: ${activeBranchId}`);
+    let activeNodeId = null; // Track the currently active node
+
+    function fadeAllNodes() {
+        const nodes = document.querySelectorAll('jmnode');
+        const expanders = document.querySelectorAll('jmexpander');
+        nodes.forEach(node => node.classList.add('faded'));
+        expanders.forEach(expander => expander.classList.add('faded'));
+    }
+
+    function highlightActiveNodeAndChildren(nodeId) {
+        // Fade all nodes first
+        fadeAllNodes();
+
+        // Highlight the active node
+        const activeNode = document.querySelector(`jmnode[nodeid="${nodeId}"]`);
+        if (activeNode) {
+            activeNode.classList.remove('faded');
+            activeNode.classList.add('active');
+
+            // Highlight immediate children
+            const childNodes = Array.from(document.querySelectorAll('jmnode'))
+                .filter(node => node.getAttribute('parentid') === nodeId);
             
-            const mainBranches = mainBranchIds;
-            const allNodes = document.querySelectorAll('.jsmind-inner jmnode');
-            console.log(`Found ${allNodes.length} total nodes`);
-            
-            // First, fade and shrink all nodes
-            console.log('Fading all nodes');
-            allNodes.forEach(node => {
-                node.classList.add('faded-branch');
-                node.classList.remove('active-branch');
+            childNodes.forEach(child => {
+                child.classList.remove('faded');
+                child.classList.add('active');
+                
+                // Show the expander for the active node
+                const expander = document.querySelector(`jmexpander[nodeid="${nodeId}"]`);
+                if (expander) {
+                    expander.classList.remove('faded');
+                }
             });
 
-            if (activeBranchId) {
-                console.log(`Processing active branch: ${activeBranchId}`);
-                
-                // Keep the clicked branch and its children visible and enlarged
-                const activeNodes = getAllChildNodes(activeBranchId);
-                console.log(`Making ${activeNodes.length} nodes visible for active branch`);
-                
-                // Center the view on the active branch
-                const activeBranchNode = jm.get_node(activeBranchId);
-                if (activeBranchNode) {
-                    console.log('Centering view on active branch');
-                    jm.select_node(activeBranchId);
-                    
-                    // Add slight delay for smooth transition
-                    setTimeout(() => {
-                        activeNodes.forEach(nodeId => {
-                            const nodeElement = document.querySelector(`.jsmind-inner jmnode[nodeid="${nodeId}"]`);
-                            if (nodeElement) {
-                                console.log(`Making node visible and enlarged: ${nodeId}`);
-                                nodeElement.classList.remove('faded-branch');
-                                nodeElement.classList.add('active-branch');
-                            } else {
-                                console.warn(`Node element not found for ID: ${nodeId}`);
-                            }
-                        });
-                        
-                        // Keep clicked node visible and enlarged
-                        const clickedElement = document.querySelector(`.jsmind-inner jmnode[nodeid="${activeBranchId}"]`);
-                        if (clickedElement) {
-                            console.log('Making clicked node visible and enlarged');
-                            clickedElement.classList.remove('faded-branch');
-                            clickedElement.classList.add('active-branch');
-                        }
-                        
-                        // Keep root visible but not enlarged
-                        const rootNode = document.querySelector('.jsmind-inner jmnode[nodeid="root"]');
-                        if (rootNode) {
-                            console.log('Making root node visible');
-                            rootNode.classList.remove('faded-branch');
-                            rootNode.classList.add('active-branch');
-                        }
-                    }, 50);
+            // Show the connection lines for active nodes
+            const canvases = activeNode.querySelectorAll('canvas');
+            canvases.forEach(canvas => {
+                const parentElement = canvas.closest('jmnode');
+                if (parentElement) {
+                    parentElement.classList.remove('faded');
                 }
-            } else {
-                console.log('No active branch, showing all nodes normally');
-                allNodes.forEach(node => {
-                    node.classList.remove('faded-branch');
-                    node.classList.add('active-branch');
-                    // Reset transform for all nodes
-                    node.style.transform = 'scale(1)';
-                });
-            }
+            });
         }
     }
 
-    console.log('Initializing visibility');
-    toggleBranchVisibility();
-
-    // Click event handler
+    let clickTimeout;
     document.querySelector('#jsmind_container').addEventListener('click', function(e) {
-        console.log('Mind map clicked:', e.target);
+        if (clickTimeout) clearTimeout(clickTimeout);
         
-        const nodeId = e.target.getAttribute('nodeid');
-        console.log('Clicked node ID:', nodeId);
-        
-        const clickedNode = jm.get_node(nodeId);
-        console.log('Retrieved node:', clickedNode);
-        
-        if (clickedNode) {
-            console.log('Node data:', {
-                id: clickedNode.id,
-                topic: clickedNode.topic,
-                isExpanded: clickedNode.isexpanded
-            });
-            
-            if (mainBranchIds.includes(clickedNode.id)) {
-                console.log('Main branch clicked');
-                
-                if (clickedNode.isexpanded) {
-                    console.log('Collapsing branch:', clickedNode.id);
-                    jm.collapse_node(clickedNode.id);
-                    toggleBranchVisibility();
+        clickTimeout = setTimeout(() => {
+            const nodeElement = e.target.closest('jmnode');
+            if (!nodeElement) return;
+
+            const nodeId = nodeElement.getAttribute('nodeid');
+            if (!nodeId) return;
+
+            // Update active node
+            activeNodeId = nodeId;
+            highlightActiveNodeAndChildren(nodeId);
+
+            if (isMoreNode(nodeId)) {
+                handleMoreNodeClick(nodeId);
+            } else if (hasChildren(nodeId) && !areChildrenRendered(nodeId)) {
+                console.log('Rendering children for node:', nodeId);
+                renderPaginatedChildren(nodeId, 0);
+                jm.expand_node(nodeId);
+            } else if (areChildrenRendered(nodeId)) {
+                const node = jm.get_node(nodeId);
+                if (node.isexpanded) {
+                    jm.collapse_node(nodeId);
                 } else {
-                    console.log('Expanding branch:', clickedNode.id);
-                    jm.expand_node(clickedNode.id);
-                    toggleBranchVisibility(clickedNode.id);
+                    jm.expand_node(nodeId);
                 }
-            } else {
-                console.log('Clicked node is not a main branch');
             }
-        } else {
-            console.log('No node found for click');
+        }, 50);
+    });
+
+    let updateTimeout;
+    jm.add_event_listener((type, data) => {
+        if (['expand_node', 'collapse_node'].includes(type)) {
+            if (updateTimeout) clearTimeout(updateTimeout);
+            updateTimeout = setTimeout(() => {
+                console.log(`Node ${type === 'expand_node' ? 'expanded' : 'collapsed'}`);
+            }, 100);
         }
     });
 
-    // Styling specific nodes
-    console.log('Adding custom styling to nodes');
-    const highlightNodes = ['1', '3'];
-    highlightNodes.forEach(nodeId => {
-        const node = jm.get_node(nodeId);
-        if (node) {
-            console.log(`Highlighting node: ${nodeId}`);
-            node.data.background = '#e6c84c';
-        } else {
-            console.warn(`Node not found for highlighting: ${nodeId}`);
-        }
-    });
-
-    // Add scroll event listener with throttling
-    document.addEventListener('scroll', throttle(() => {
-        if (window.innerWidth <= 768) { // Only for mobile
-            updateNodesVisibility();
-        }
-    }, 100));
-
-    // Add resize event listener
-    window.addEventListener('resize', throttle(() => {
-        toggleBranchVisibility();
-    }, 100));
-
-    // Add touch events for mobile
-    let touchStartY = 0;
-    document.addEventListener('touchstart', (e) => {
-        touchStartY = e.touches[0].clientY;
-    });
-
-    document.addEventListener('touchmove', throttle((e) => {
-        if (window.innerWidth <= 768) {
-            const touchY = e.touches[0].clientY;
-            const diff = touchStartY - touchY;
-            touchStartY = touchY;
+    if ('ontouchstart' in window) {
+        const touchContainer = document.querySelector('#jsmind_container');
+        let touchStartX, touchStartY;
+        
+        touchContainer.addEventListener('touchstart', function(e) {
+            touchStartX = e.touches[0].clientX;
+            touchStartY = e.touches[0].clientY;
+        }, { passive: true });
+        
+        touchContainer.addEventListener('touchmove', function(e) {
+            if (!touchStartX || !touchStartY) return;
             
-            if (Math.abs(diff) > 5) { // Minimum scroll threshold
-                updateNodesVisibility();
-            }
+            const deltaX = touchStartX - e.touches[0].clientX;
+            const deltaY = touchStartY - e.touches[0].clientY;
+            
+            touchContainer.scrollLeft += deltaX;
+            touchContainer.scrollTop += deltaY;
+            
+            touchStartX = e.touches[0].clientX;
+            touchStartY = e.touches[0].clientY;
+        }, { passive: true });
+    }
+
+    // Initialize with root node active
+    setTimeout(() => {
+        const rootNode = jm.get_root();
+        if (rootNode) {
+            activeNodeId = rootNode.id;
+            highlightActiveNodeAndChildren(rootNode.id);
         }
-    }, 100));
+    }, 100);
 }); 

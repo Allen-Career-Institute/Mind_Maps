@@ -32,11 +32,24 @@ jmnode {
     border-radius: 5px !important;
     padding: 10px !important;
     box-shadow: 2px 2px 4px rgba(0,0,0,0.1) !important;
-    transition: opacity 0.3s ease-in-out;
+    transition: all 0.3s ease-in-out;
+    /* Use hardware acceleration for animations */
+    transform: translateZ(0);
+    backface-visibility: hidden;
+    perspective: 1000;
+    /* Optimize paint operations */
+    will-change: transform, opacity;
 } 
 
 .jsmind-inner {
     background-color: #f4f4f4;
+    /* Reduce GPU memory usage */
+    transform: translate3d(0,0,0);
+    /* Reduce repaints */
+    transform: translateZ(0);
+    /* Optimize memory usage */
+    contain: layout style paint;
+    position: relative;
 }
 
 /* Add transition for smooth fade and scale effect */
@@ -44,20 +57,23 @@ jmnode {
     transition: all 0.3s ease-in-out !important;
     opacity: 1;
     transform: scale(1);
+    /* Reduce paint operations */
+    will-change: transform, opacity;
+    /* Optimize compositing */
+    isolation: isolate;
 }
 
 /* Class for faded nodes */
 .jsmind-inner jmnode.faded-branch {
-    opacity: 0.1 !important;
-    transform: scale(0.8) !important;
-    pointer-events: none;
+    opacity: 0.3;
+    transform: scale(0.95);
 }
 
 /* Class for active branch */
 .jsmind-inner jmnode.active-branch {
-    opacity: 1 !important;
-    transform: scale(1.2) !important;
-    z-index: 1000 !important;
+    opacity: 1;
+    transform: scale(1.05);
+    z-index: 1000;
     box-shadow: 0 4px 8px rgba(0,0,0,0.2) !important;
 }
 
@@ -73,12 +89,12 @@ jmnode {
     }
 
     .jsmind-inner jmnode.faded-branch {
-        opacity: 0.05 !important; /* More fade on mobile */
-        transform: scale(0.9) !important; /* Less scale difference */
+        opacity: 0.4; /* Less fade on mobile */
+        transform: scale(0.95); /* Less scale difference */
     }
 
     .jsmind-inner jmnode.active-branch {
-        transform: scale(1.1) !important; /* Less enlargement on mobile */
+        transform: scale(1.05) !important; /* Less enlargement on mobile */
         box-shadow: 0 2px 4px rgba(0,0,0,0.15) !important; /* Lighter shadow */
     }
 
@@ -87,9 +103,95 @@ jmnode {
         padding: 12px !important; /* Larger touch target */
         margin: 4px !important; /* Better spacing */
     }
+
+    #jsmind_container {
+        /* Improve touch scrolling */
+        -webkit-overflow-scrolling: touch;
+        /* Optimize memory usage */
+        height: calc(100vh - 40px);
+    }
+
+    .jsmind-inner {
+        /* Reduce repaints */
+        transform: translateZ(0);
+        /* Optimize memory usage */
+        contain: layout style paint;
+    }
+
+    jmnode {
+        /* Larger touch targets for mobile */
+        min-width: 100px;
+        min-height: 44px;
+        /* Reduce paint area */
+        contain: layout paint;
+        /* Optimize text rendering */
+        text-rendering: optimizeLegibility;
+        /* Improve tap highlight behavior */
+        -webkit-tap-highlight-color: rgba(0,0,0,0.1);
+    }
+
+    /* Optimize transitions for mobile */
+    .jsmind-inner jmnode {
+        transition: transform 0.2s ease-out, opacity 0.2s ease-out !important;
+    }
 }
 
 /* Add smooth scrolling for iOS */
 .jsmind-inner {
     -webkit-overflow-scrolling: touch;
+}
+
+/* Memory optimization for large datasets */
+.jsmind-inner {
+    contain: layout style paint;
+    /* Reduce GPU memory usage */
+    transform: translate3d(0,0,0);
+}
+
+/* Improve rendering performance */
+.jsmind-inner jmnode {
+    /* Reduce paint operations */
+    will-change: transform, opacity;
+    /* Optimize compositing */
+    isolation: isolate;
+}
+
+/* Optimize for high-density displays */
+@media (-webkit-min-device-pixel-ratio: 2), (min-resolution: 192dpi) {
+    jmnode {
+        /* Sharper text on retina displays */
+        -webkit-font-smoothing: antialiased;
+        -moz-osx-font-smoothing: grayscale;
+    }
+}
+
+/* Node visibility states */
+jmnode {
+    transition: opacity 0.3s ease-out;
+    opacity: 1;
+}
+
+jmnode.faded {
+    opacity: 0.3;
+}
+
+jmnode.active {
+    opacity: 1;
+}
+
+jmexpander {
+    transition: opacity 0.3s ease-out;
+}
+
+jmexpander.faded {
+    opacity: 0.3;
+}
+
+/* Add a subtle transition to the connection lines */
+jmnode canvas {
+    transition: opacity 0.3s ease-out;
+}
+
+.faded canvas {
+    opacity: 0.3;
 }
