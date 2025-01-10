@@ -167,8 +167,7 @@ jmnode {
 
 /* Node visibility states */
 jmnode {
-    transition: opacity 0.3s ease-out;
-    opacity: 1;
+    transition: opacity 0.3s ease;
 }
 
 jmnode.faded {
@@ -180,7 +179,7 @@ jmnode.active {
 }
 
 jmexpander {
-    transition: opacity 0.3s ease-out;
+    transition: opacity 0.3s ease;
 }
 
 jmexpander.faded {

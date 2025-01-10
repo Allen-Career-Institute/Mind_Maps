@@ -1,6 +1,8 @@
 document.addEventListener('DOMContentLoaded', function() {
     console.log('DOM Content Loaded');
     
+    let jm; // Declare jm at the top
+    
     // Performance optimization - Throttle resize events
     let resizeTimeout;
     window.addEventListener('resize', function() {
@@ -71,7 +73,8 @@ document.addEventListener('DOMContentLoaded', function() {
     const fullMindMapData = mindMapData;
     const collapsedMindMapData = createCollapsedData(mindMapData);
 
-    const jm = new jsMind(options);
+    // Initialize jm
+    jm = new jsMind(options);
     console.log('jsMind instance created');
     
     jm.show(collapsedMindMapData);
@@ -79,21 +82,28 @@ document.addEventListener('DOMContentLoaded', function() {
 
     const nodeCache = new Map();
     function getChildNodes(nodeId) {
+        console.log(`Getting child nodes for ${nodeId}`);
         if (nodeCache.has(nodeId)) {
+            console.log('Retrieved from cache');
             return nodeCache.get(nodeId);
         }
         const children = fullMindMapData.data.filter(node => node.parentid === nodeId);
+        console.log(`Found ${children.length} children for ${nodeId}:`, children);
         nodeCache.set(nodeId, children);
         return children;
     }
 
     function hasChildren(nodeId) {
-        return getChildNodes(nodeId).length > 0;
+        const hasChildrenResult = getChildNodes(nodeId).length > 0;
+        console.log(`hasChildren check for ${nodeId}:`, hasChildrenResult);
+        return hasChildrenResult;
     }
 
     function areChildrenRendered(nodeId) {
         const node = jm.get_node(nodeId);
-        return node && node.children && node.children.length > 0;
+        const result = node && node.children && node.children.length > 0;
+        console.log(`areChildrenRendered check for ${nodeId}:`, result);
+        return result;
     }
 
     function isMoreNode(nodeId) {
@@ -107,8 +117,8 @@ document.addEventListener('DOMContentLoaded', function() {
     function createMoreNodeId(parentId, pageIndex) {
         return `${MORE_NODE_ID_PREFIX}${parentId}_${pageIndex}`;
     }
-git 
-    function getPaginationState(nodeId) {push 
+
+    function getPaginationState(nodeId) {
         if (!paginationState.has(nodeId)) {
             paginationState.set(nodeId, {
                 currentPage: 0,
@@ -119,21 +129,33 @@ git
     }
 
     function renderPaginatedChildren(nodeId, pageIndex = 0) {
+        console.log(`Rendering paginated children for ${nodeId}, page ${pageIndex}`);
         const childNodes = getChildNodes(nodeId);
+        console.log('Child nodes to render:', childNodes);
         
         // If 5 or fewer children, render them all
         if (childNodes.length <= CHILDREN_PER_PAGE && pageIndex === 0) {
+            console.log('Rendering all children (≤5)');
             requestAnimationFrame(() => {
                 childNodes.forEach(childNode => {
-                    jm.add_node(nodeId, childNode.id, childNode.topic, {
-                        direction: childNode.direction,
-                        expanded: false,
-                        data: childNode.data || {}
-                    });
+                    console.log(`Adding node: ${childNode.id} to parent: ${nodeId}`);
+                    try {
+                        jm.add_node(nodeId, childNode.id, childNode.topic, {
+                            direction: childNode.direction,
+                            expanded: false,
+                            data: childNode.data || {}
+                        });
+                        console.log(`Successfully added node ${childNode.id}`);
+                    } catch (error) {
+                        console.error(`Error adding node ${childNode.id}:`, error);
+                    }
                 });
                 
                 if (jm.layout) {
+                    console.log('Applying layout');
                     jm.layout.layout();
+                } else {
+                    console.warn('Layout not available');
                 }
             });
             return;
@@ -247,32 +269,55 @@ git
 
     let clickTimeout;
     document.querySelector('#jsmind_container').addEventListener('click', function(e) {
+        console.log('Click event triggered');
+        console.log('Click target:', e.target);
+        
         if (clickTimeout) clearTimeout(clickTimeout);
         
         clickTimeout = setTimeout(() => {
             const nodeElement = e.target.closest('jmnode');
-            if (!nodeElement) return;
+            if (!nodeElement) {
+                console.log('No node element clicked');
+                return;
+            }
 
             const nodeId = nodeElement.getAttribute('nodeid');
-            if (!nodeId) return;
+            if (!nodeId) {
+                console.log('No nodeId found');
+                return;
+            }
+
+            console.log('Node clicked:', nodeId);
+            console.log('Node element:', nodeElement);
+            console.log('Has children:', hasChildren(nodeId));
+            console.log('Children rendered:', areChildrenRendered(nodeId));
+            console.log('Node data:', jm.get_node(nodeId));
 
             // Update active node
             activeNodeId = nodeId;
             highlightActiveNodeAndChildren(nodeId);
 
-            if (isMoreNode(nodeId)) {
-                handleMoreNodeClick(nodeId);
-            } else if (hasChildren(nodeId) && !areChildrenRendered(nodeId)) {
-                console.log('Rendering children for node:', nodeId);
-                renderPaginatedChildren(nodeId, 0);
-                jm.expand_node(nodeId);
-            } else if (areChildrenRendered(nodeId)) {
-                const node = jm.get_node(nodeId);
-                if (node.isexpanded) {
-                    jm.collapse_node(nodeId);
-                } else {
+            try {
+                if (isMoreNode(nodeId)) {
+                    console.log('Handling more node click');
+                    handleMoreNodeClick(nodeId);
+                } else if (hasChildren(nodeId) && !areChildrenRendered(nodeId)) {
+                    console.log('Attempting to render children for node:', nodeId);
+                    renderPaginatedChildren(nodeId, 0);
+                    console.log('Attempting to expand node:', nodeId);
                     jm.expand_node(nodeId);
+                } else if (areChildrenRendered(nodeId)) {
+                    console.log('Toggling node expansion');
+                    const node = jm.get_node(nodeId);
+                    console.log('Node expansion state:', node.isexpanded);
+                    if (node.isexpanded) {
+                        jm.collapse_node(nodeId);
+                    } else {
+                        jm.expand_node(nodeId);
+                    }
                 }
+            } catch (error) {
+                console.error('Error handling node click:', error);
             }
         }, 50);
     });
